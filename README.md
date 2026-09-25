@@ -11,6 +11,7 @@ your request fits its description — you don't need to invoke it by an exact co
 | Skill | Description |
 | --- | --- |
 | [`copilot-cli-usage-report`](.github/skills/copilot-cli-usage-report/SKILL.md) | Generates a per-model, monthly Copilot CLI consumption report (requests, tokens, cache tokens, and an unverified request-multiplier/AI-credit proxy), sourced from the local `session-store.db` telemetry on the machine where it runs. |
+| [`llm-council`](.github/skills/llm-council/SKILL.md) | Answers a question by convening a council of several different LLMs that answer independently, anonymously peer-review and rank each other, and are synthesised into one final answer by a "Chairman" model. Invocation is language-agnostic — asking in English ("ask the council...") or Spanish ("convoca al consejo...") triggers it the same way, since matching is based on intent, not an exact phrase. |
 
 ## Installation
 
