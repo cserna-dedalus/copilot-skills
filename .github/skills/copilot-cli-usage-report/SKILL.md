@@ -1,6 +1,6 @@
 ---
 name: "copilot-cli-usage-report"
-description: "Generate a per-model, per-month consumption breakdown for GitHub Copilot CLI (requests, tokens, cache tokens, and a request-multiplier proxy for AI credits), sourced from the local session-store telemetry on this machine. Use when the user asks for their Copilot CLI usage/consumption by model, monthly usage report, token breakdown by model, or 'cuánto he consumido de cada modelo este mes'."
+description: "Break down GitHub Copilot CLI consumption by model over a given period (requests, tokens, and a rough credit-usage proxy), sourced from local usage telemetry on this machine. Use for any request about Copilot CLI usage, spend, or consumption per model — by day, week, month, or 'this month' — in English, Spanish, or any other language."
 compatibility: "Requires the `powershell` tool with local `python` (stdlib `sqlite3`/`csv`/`json` only, no extra packages) and read access to `$HOME/.copilot/session-store.db`. Windows paths shown; adapt separators on other OSes."
 metadata:
   author: "cserna"
@@ -12,14 +12,21 @@ metadata:
 $ARGUMENTS
 ```
 
-`$ARGUMENTS` may specify a month (e.g. `2026-09`, `septiembre`, `last month`) and/or an
-output location. If empty, default to the **current calendar month up to today**, and save
-outputs under the current session's `files/` folder (or ask where to save if there is none).
+`$ARGUMENTS` may specify a time period in any language (e.g. `2026-09`, `September`,
+`septiembre`, `this month`, `este mes`, `last 7 days`, `última semana`) and/or an output
+location. If empty, default to the **current calendar month up to today**, and save outputs
+under the current session's `files/` folder (or ask where to save if there is none).
+
+## Language
+
+Respond in whichever language the user used for their request (English, Spanish, or
+otherwise) — table headers, narrative, and caveats should all match it. Don't force English
+or Spanish; mirror the user.
 
 ## What this skill does
 
 Produces a table (and CSV/JSON exports) of Copilot CLI consumption **grouped by model**,
-for the requested month, using the real local telemetry table `assistant_usage_events`
+for the requested period, using the real local telemetry table `assistant_usage_events`
 inside `session-store.db` — the same store the CLI itself uses for `/usage`. This is **not**
 a GitHub server-side API; it is local, per-machine data. Always be upfront about that scope
 limitation (see Guardrails).
@@ -50,10 +57,12 @@ Get-ChildItem "$env:USERPROFILE\.copilot\session-store.db"
 On macOS/Linux the equivalent path is `$HOME/.copilot/session-store.db`. If missing, tell
 the user this machine has no local Copilot CLI usage history and stop.
 
-### 2. Resolve the target month
+### 2. Resolve the target period
 
-Compute a `YYYY-MM` prefix for the requested month (default: current month,
-`date +%Y-%m` / `Get-Date -Format yyyy-MM`). Confirm it with the user only if ambiguous.
+Translate the request (in whatever language) into a concrete date range: either a
+`YYYY-MM` month prefix (default: current month, `date +%Y-%m` / `Get-Date -Format yyyy-MM`),
+or an explicit `start_date`/`end_date` for ranges like "last 7 days" or "última semana".
+Confirm it with the user only if genuinely ambiguous.
 
 ### 3. Export raw events (audit trail)
 
@@ -62,8 +71,10 @@ Write a small Python script (stdlib only) to a temp/session file and run it with
 with `-c` on Windows (quoting breaks). The script must:
 
 1. Open `session-store.db` read-only via `sqlite3`.
-2. `SELECT *` from `assistant_usage_events` filtered by `substr(created_at,1,7) = '<YYYY-MM>'`.
-3. Write every matching row verbatim to `copilot_cli_usage_raw_<YYYY-MM>.csv` (this is the
+2. `SELECT *` from `assistant_usage_events` filtered by the resolved period — either
+   `substr(created_at,1,7) = '<YYYY-MM>'` for a month, or `created_at BETWEEN '<start>' AND
+   '<end>'` for an explicit range.
+3. Write every matching row verbatim to `copilot_cli_usage_raw_<period>.csv` (this is the
    "raw data used for the calculation" — always produce it, per user expectations set by
    prior runs of this analysis).
 
@@ -82,15 +93,15 @@ In the same or a second script, group the rows above by `model` and compute, per
 - `total_nano_aiu` (raw internal unit, include but do not convert or rename)
 
 Sort by `total_tokens` descending. Write:
-- `copilot_cli_usage_by_model_<YYYY-MM>.json` (grand totals + per-model array)
-- `copilot_cli_usage_by_model_<YYYY-MM>.csv` (same, flattened)
+- `copilot_cli_usage_by_model_<period>.json` (grand totals + per-model array)
+- `copilot_cli_usage_by_model_<period>.csv` (same, flattened)
 
 ### 5. Report to the user
 
-Present a Markdown table with columns: Modelo, Requests, Sesiones, Input tokens, Output
-tokens, Cache read, Cache write, Total tokens, % tokens. Add a totals row. Then a short
-paragraph giving the `sum_request_multiplier` view as the AI-credit proxy, clearly labeled
-unverified. List the file paths written.
+Present a Markdown table with columns (translated to match the user's language): Model,
+Requests, Sessions, Input tokens, Output tokens, Cache read, Cache write, Total tokens, %
+tokens. Add a totals row. Then a short paragraph giving the `sum_request_multiplier` view as
+the AI-credit proxy, clearly labeled unverified. List the file paths written.
 
 ## Guardrails
 
